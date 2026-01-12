@@ -2,7 +2,10 @@ package core.spring.springcoremoduleproject.Commands;
 
 import core.spring.springcoremoduleproject.Entities.Account;
 import core.spring.springcoremoduleproject.Entities.User;
+import core.spring.springcoremoduleproject.Services.AccountService;
 import core.spring.springcoremoduleproject.Services.UserService;
+import core.spring.springcoremoduleproject.Util.HibernateUtility;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Scanner;
@@ -10,9 +13,14 @@ import java.util.Scanner;
 @Component
 public class CloseAccountCommand implements OperationCommand {
     private final UserService userService;
+    private final AccountService accountService;
 
-    public CloseAccountCommand(UserService userService) {
+    @Autowired
+    HibernateUtility hibernateUtility;
+
+    public CloseAccountCommand(UserService userService, AccountService accountService) {
         this.userService = userService;
+        this.accountService = accountService;
     }
 
     @Override
@@ -21,23 +29,10 @@ public class CloseAccountCommand implements OperationCommand {
             System.out.println("Enter account ID to close:");
             int accountId = Integer.parseInt(scanner.nextLine().trim());
 
-            Account accountToClose = null;
-            User accountOwner = null;
+            Account accountToClose = accountService.findAccountById(accountId);
+            User accountOwner = accountToClose.getUser();
 
-            for (User user : userService.getUserList()) {
-                for (Account account : user.getAccountList()) {
-                    if (account.getId() == accountId) {
-                        accountToClose = account;
-                        accountOwner = user;
-                        break;
-                    }
-                }
-                if (accountToClose != null) {
-                    break;
-                }
-            }
-
-            if (accountToClose == null || accountOwner == null) {
+            if (accountToClose == null) {
                 throw new IllegalArgumentException("Account with ID " + accountId + " not found.");
             }
 
@@ -46,9 +41,17 @@ public class CloseAccountCommand implements OperationCommand {
             }
 
             double balance = accountToClose.getMoneyAmount();
+
             Account firstAccount = accountOwner.getAccountList().get(0);
-            firstAccount.plusMoney(balance);
-            accountOwner.getAccountList().remove(accountToClose);
+            if (firstAccount.getId() == accountId) {
+                firstAccount = accountOwner.getAccountList().get(1);
+            }
+
+            accountService.plusMoney(firstAccount, balance);
+
+            hibernateUtility.executeTransaction(session -> {
+                session.delete(accountToClose);
+            });
 
             System.out.println("Account with ID " + accountId + " has been closed. Balance transferred to account ID " + firstAccount.getId());
         } catch (NumberFormatException e) {

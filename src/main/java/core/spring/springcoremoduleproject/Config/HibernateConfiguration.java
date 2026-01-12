@@ -24,7 +24,7 @@ public class HibernateConfiguration {
                 .setProperty("hibernate.connection.driver_class", "org.postgresql.Driver")
                 .setProperty("hibernate.connection.url", "jdbc:postgresql://localhost:5432/postgres")
                 .setProperty("hibernate.connection.username", "postgres")
-                .setProperty("hibernate.connection.password", "bytafqsc1")
+                .setProperty("hibernate.connection.password", "поменял пароль :)")
                 .setProperty("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect")
                 .setProperty("hibernate.show_sql", "true")
                 .setProperty("hibernate.hbm2ddl.auto", "update");

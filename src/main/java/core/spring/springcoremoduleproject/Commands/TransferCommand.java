@@ -2,7 +2,10 @@ package core.spring.springcoremoduleproject.Commands;
 
 import core.spring.springcoremoduleproject.Entities.Account;
 import core.spring.springcoremoduleproject.Entities.User;
+import core.spring.springcoremoduleproject.Services.AccountService;
 import core.spring.springcoremoduleproject.Services.UserService;
+import core.spring.springcoremoduleproject.Util.HibernateUtility;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -12,10 +15,15 @@ import java.util.Scanner;
 public class TransferCommand implements OperationCommand {
     private final UserService userService;
     private final double transferCommission;
+    private final AccountService accountService;
 
-    public TransferCommand(UserService userService, @Value("${account.transfer-commission}") double transferCommission) {
+    @Autowired
+    HibernateUtility hibernateUtility;
+
+    public TransferCommand(UserService userService, @Value("${account.transfer-commission}") double transferCommission, AccountService accountService) {
         this.userService = userService;
         this.transferCommission = transferCommission;
+        this.accountService = accountService;
     }
 
     @Override
@@ -23,9 +31,11 @@ public class TransferCommand implements OperationCommand {
         try {
             System.out.println("Enter source account ID:");
             int fromAccountId = Integer.parseInt(scanner.nextLine().trim());
+            Account fromAccount = accountService.findAccountById(fromAccountId);
 
             System.out.println("Enter target account ID:");
             int toAccountId = Integer.parseInt(scanner.nextLine().trim());
+            Account toAccount = accountService.findAccountById(toAccountId);
 
             System.out.println("Enter amount to transfer:");
             double amount = Double.parseDouble(scanner.nextLine().trim());
@@ -34,39 +44,35 @@ public class TransferCommand implements OperationCommand {
                 throw new IllegalArgumentException("Amount must be positive. Entered: " + amount);
             }
 
-            Account fromAccount = null;
-            Account toAccount = null;
-            User fromUser = null;
-            User toUser = null;
-
-            for (User user : userService.getUserList()) {
-                for (Account account : user.getAccountList()) {
-                    if (account.getId() == fromAccountId) {
-                        fromAccount = account;
-                        fromUser = user;
-                    }
-                    if (account.getId() == toAccountId) {
-                        toAccount = account;
-                        toUser = user;
-                    }
-                }
-            }
-
             if (fromAccount == null || toAccount == null) {
                 throw new IllegalArgumentException("One or both accounts not found.");
             }
 
-            if (fromAccount.getMoneyAmount() < amount) {
-                throw new IllegalArgumentException("Not enough money on account ID " + fromAccountId);
+            boolean isSameUser = (fromAccount.getId() == toAccount.getId());
+            double amountWithCommission = isSameUser ? amount : amount * (1 + (transferCommission / 100));
+            if (fromAccount.getMoneyAmount() < amountWithCommission) {
+                throw new IllegalArgumentException("Insufficient funds in the account (including commission) " + fromAccountId);
             }
 
-            boolean isSameUser = (fromAccount.getUserId() == toAccount.getUserId());
-            double amountWithCommission = isSameUser ? amount : amount * (1 + (transferCommission / 100));
-
-            fromAccount.minusMoney(amountWithCommission);
-            toAccount.plusMoney(amount);
+            accountService.minusMoney(fromAccount, amountWithCommission);
+            accountService.plusMoney(toAccount, amount);
 
             System.out.printf("Amount %.2f transferred from account ID %d to account ID %d.%n", amount, fromAccountId, toAccountId);
+
+            /*
+            * hibernateUtility.executeTransaction(session -> {
+            fromAccount.setMoneyAmount(fromAccount.getMoneyAmount() - amountWithCommission);
+            session.update(fromAccount);
+
+            toAccount.setMoneyAmount(toAccount.getMoneyAmount() + amount);
+            session.update(toAccount);
+
+            // ИСКУСТВЕННО выбрасываем исключение
+            throw new RuntimeException("Simulated error after transfer!!!");
+        });
+            * */
+
+
         } catch (NumberFormatException e) {
             System.out.println("Invalid input format.");
         } catch (Exception e) {

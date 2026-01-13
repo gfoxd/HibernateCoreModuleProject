@@ -1,59 +1,64 @@
 package core.spring.springcoremoduleproject.Services;
 
 import core.spring.springcoremoduleproject.Entities.User;
+import core.spring.springcoremoduleproject.Util.HibernateUtility;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
 import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class UserService {
-    private final List<User> userList = new ArrayList<>();
-    private int nextUserId = 1;
-    @Value("${account.default-amount}")
-    private double defaultAmount;
 
     @Autowired
     private AccountService accountService;
 
-    public void createUser(String login) {
-        if (findUserByLogin(login)) {
-            User newUser = new User(nextUserId++, login);
+    @Autowired
+    HibernateUtility hibernateUtility;
 
-            userList.add(newUser);
-            accountService.createAccountNewUser(newUser.getId());
-        } else {
-            System.out.println("Пользователь с таким логином уже существует");
-        }
+    public void createUser(String login) {
+        hibernateUtility.executeTransaction(session -> {
+            if (findUserByLogin(login) == null) {
+                User newUser = new User(login);
+                session.persist(newUser);
+                accountService.createAccountNewUser(newUser, session); // Передаём сессию
+            } else {
+                System.out.println("A user with this login already exists");
+            }
+        });
     }
 
-    public boolean findUserByLogin(String login) {
-        for (User user : userList) {
-            if (user.getLogin().equals(login)) {
-                return false;
-            }
-        }
-        return true;
+    public User findUserByLogin(String login) {
+        List<User> users = hibernateUtility.executeTransaction(session -> {
+            return session
+                    .createQuery("FROM User u WHERE u.login = :login", User.class)
+                    .setParameter("login", login)
+                    .getResultList();
+        });
+
+        return users.isEmpty() ? null : users.get(0);
     }
 
     public User findUserById(int id) {
-        for (User user : userList) {
-            if (user.getId() == id) {
-                return user;
-            }
-        }
-        return null;
+        List<User> users = hibernateUtility.executeTransaction(session -> {
+            return session
+                    .createQuery("SELECT u FROM User u LEFT JOIN FETCH u.accountList WHERE u.id = :id", User.class)
+                    .setParameter("id", id)
+                    .getResultList();
+        });
+
+        return users.isEmpty() ? null : users.get(0);
     }
 
     public List<User> getUserList() {
-        return userList;
+        List<User> users = hibernateUtility.executeTransaction(session -> {
+            return session
+                    .createQuery("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.accountList", User.class)
+                    .getResultList();
+        });
+
+        return users;
     }
 
-    @Override
-    public String toString() {
-        return "UserService{" +
-                "userList=" + userList +
-                '}';
-    }
 }

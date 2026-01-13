@@ -2,7 +2,10 @@ package core.spring.springcoremoduleproject.Commands;
 
 import core.spring.springcoremoduleproject.Entities.Account;
 import core.spring.springcoremoduleproject.Entities.User;
+import core.spring.springcoremoduleproject.Services.AccountService;
 import core.spring.springcoremoduleproject.Services.UserService;
+import core.spring.springcoremoduleproject.Util.HibernateUtility;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Scanner;
@@ -10,50 +13,32 @@ import java.util.Scanner;
 @Component
 public class WithdrawCommand implements OperationCommand {
     private final UserService userService;
+    private final AccountService accountService;
 
-    public WithdrawCommand(UserService userService) {
+    public WithdrawCommand(UserService userService, AccountService accountService) {
         this.userService = userService;
+        this.accountService = accountService;
     }
+
+    @Autowired
+    HibernateUtility hibernateUtility;
 
     @Override
     public void execute(Scanner scanner) {
         try {
-            System.out.println("Enter account ID to withdraw from:");
+            System.out.println("Enter account ID:");
             int accountId = Integer.parseInt(scanner.nextLine().trim());
 
-            Account account = null;
-            for (User user : userService.getUserList()) {
-                for (Account acc : user.getAccountList()) {
-                    if (acc.getId() == accountId) {
-                        account = acc;
-                        break;
-                    }
-                }
-                if (account != null) {
-                    break;
-                }
-            }
-
-            if (account == null) {
-                throw new IllegalArgumentException("Account with ID " + accountId + " not found.");
-            }
-
             System.out.println("Enter amount to withdraw:");
-            double amount = Double.parseDouble(scanner.nextLine().trim());
-            if (amount <= 0) {
-                throw new IllegalArgumentException("Amount must be positive. Entered: " + amount);
-            }
+            double withdrawAmount = Double.parseDouble(scanner.nextLine().trim());
 
-            if (account.getMoneyAmount() < amount) {
-                throw new IllegalArgumentException("Not enough money on account ID " + accountId);
-            }
+            accountService.minusMoney(accountService.findAccountById(accountId), withdrawAmount);
 
-            account.minusMoney(amount);
-            System.out.println("Amount " + amount + " withdrawn from account ID: " + accountId);
+            System.out.println("Amount " + withdrawAmount + " withdrawn to account ID: " + accountId);
         } catch (NumberFormatException e) {
             System.out.println("Invalid input format.");
         } catch (Exception e) {
-            System.out.println("Error withdrawing amount: " + e.getMessage());
+            System.out.println("Error withdrawing to account: " + e.getMessage());
         }
     }
 

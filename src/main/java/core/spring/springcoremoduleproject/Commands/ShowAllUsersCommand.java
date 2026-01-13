@@ -17,13 +17,21 @@ public class ShowAllUsersCommand implements OperationCommand {
     @Override
     public void execute(Scanner scanner) {
         try {
-            System.out.println("List of all users:");
             if (userService.getUserList().isEmpty()) {
                 System.out.println("No users found.");
             } else {
+                boolean showTitle = true;
+
                 for (User user : userService.getUserList()) {
+
+                    if (showTitle) {
+                        System.out.println("\nList of all users:");
+                        showTitle = false;
+                    }
+
                     System.out.println(user);
                 }
+
             }
         } catch (Exception e) {
             System.out.println("Error showing users: " + e.getMessage());
